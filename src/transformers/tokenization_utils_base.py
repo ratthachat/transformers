@@ -2910,7 +2910,8 @@ class PreTrainedTokenizerBase(SpecialTokensMixin):
         Returns:
             :obj:`str`: The decoded sentence.
         """
-        raise NotImplementedError
+        return self._decode(token_ids, skip_special_tokens, clean_up_tokenization_spaces, **kwargs)
+#         raise NotImplementedError
 
     def get_special_tokens_mask(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
