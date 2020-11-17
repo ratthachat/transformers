@@ -873,7 +873,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin):
                 resume_download=resume_download,
                 proxies=proxies,
                 local_files_only=local_files_only,
-                revision=revision,
+#                 revision=revision,
                 **kwargs,
             )
         else:
@@ -911,7 +911,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin):
                 archive_file = hf_bucket_url(
                     pretrained_model_name_or_path,
                     filename=(TF2_WEIGHTS_NAME if from_tf else WEIGHTS_NAME),
-                    revision=revision,
+#                     revision=revision,
                     mirror=mirror,
                 )
 
