@@ -653,7 +653,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin, TFGenerationMixin):
                 resume_download=resume_download,
                 proxies=proxies,
                 local_files_only=local_files_only,
-                revision=revision,
+#                 revision=revision,
                 **kwargs,
             )
         else:
@@ -682,7 +682,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin, TFGenerationMixin):
                 archive_file = hf_bucket_url(
                     pretrained_model_name_or_path,
                     filename=(WEIGHTS_NAME if from_pt else TF2_WEIGHTS_NAME),
-                    revision=revision,
+#                     revision=revision,
                     mirror=mirror,
                 )
 
