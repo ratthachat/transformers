@@ -22,15 +22,11 @@ if is_tf_available() and is_datasets_available() and is_faiss_available():
 
     from transformers import (
         AutoConfig,
-        BartTokenizer,
-        DPRQuestionEncoderTokenizer,
         RagConfig,
         RagRetriever,
         RagTokenizer,
         TFAutoModel,
         TFAutoModelForSeq2SeqLM,
-        TFBartForConditionalGeneration,
-        TFDPRQuestionEncoder,
         TFRagModel,
         TFRagSequenceForGeneration,
         TFRagTokenForGeneration,
@@ -65,6 +61,11 @@ class TFRagTestMixin:
 
     all_model_classes = (
         (TFRagModel, TFRagTokenForGeneration, TFRagSequenceForGeneration)
+        if is_tf_available() and is_datasets_available() and is_faiss_available()
+        else ()
+    )
+    all_generative_model_classes = (
+        (TFRagTokenForGeneration, TFRagSequenceForGeneration)
         if is_tf_available() and is_datasets_available() and is_faiss_available()
         else ()
     )
@@ -210,9 +211,7 @@ class TFRagTestMixin:
 
         retriever = self.get_retriever(config)
 
-        for i, model_class in enumerate(self.all_model_classes):
-            if i == 0:
-                continue  # TFRagModel does not have generate function
+        for i, model_class in enumerate(self.all_generative_model_classes):
             model = model_class(config)
             self.assertTrue(model.config.is_encoder_decoder)
 
@@ -252,7 +251,7 @@ class TFRagTestMixin:
         self.assertIsNotNone(config.question_encoder)
         self.assertIsNotNone(config.generator)
 
-        for model_class in self.all_model_classes[1:]:
+        for model_class in self.all_generative_model_classes:
             model = model_class(config, retriever=self.get_retriever(config))
 
             self.assertTrue(model.config.is_encoder_decoder)
@@ -935,7 +934,6 @@ class TFRagModelIntegrationTests(unittest.TestCase):
         )
 
         input_ids = input_dict.input_ids
-        attention_mask = input_dict.attention_mask
 
         question_hidden_states = rag_sequence.question_encoder(input_ids)[0]
         docs_dict = retriever(input_ids.numpy(), question_hidden_states.numpy(), return_tensors="tf")

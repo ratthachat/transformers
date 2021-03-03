@@ -1240,7 +1240,10 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin, TFGenerationMixin):
 
         # composed models, *e.g.* TFRag, require special treatment when it comes to loading
         # pre-trained weights.
-        if "load_weight_prefix" in inspect.signature(cls.__init__).parameters.keys():
+        if (
+            "load_weight_prefix" in inspect.signature(cls.__init__).parameters.keys()
+            and model_kwargs.get("name") is not None
+        ):
             model_kwargs["load_weight_prefix"] = load_weight_prefix + "/" + model_kwargs.get("name")
 
         # Instantiate model.
@@ -1653,7 +1656,7 @@ class TFSequenceSummary(tf.keras.layers.Layer):
                 )  # A tensor full of shape [batch] or [batch, num choices] full of sequence length
             cls_shape = shape_list(cls_index)
             if len(cls_shape) <= len(hidden_shape) - 2:
-                cls_index = cls_index[..., tf.newaxis]
+                cls_index = tf.expand_dims(cls_index, axis=-1)
             # else:
             # cls_index = cls_index[..., tf.newaxis]
             # cls_index = cls_index.expand((-1,) * (cls_index.dim()-1) + (hidden_states.size(-1),))

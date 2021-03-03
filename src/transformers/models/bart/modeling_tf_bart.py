@@ -92,17 +92,17 @@ def _make_causal_mask(input_ids_shape: tf.TensorShape, past_key_values_length: i
 
     if past_key_values_length > 0:
         mask = tf.concat([tf.zeros((tgt_len, past_key_values_length), dtype=tf.float32), mask], axis=-1)
-    return tf.broadcast_to(mask[None, None, :, :], (bsz, 1, tgt_len, tgt_len + past_key_values_length))
+
+    return tf.tile(mask[None, None, :, :], (bsz, 1, 1, 1))
 
 
 def _expand_mask(mask: tf.Tensor, tgt_len: Optional[int] = None, past_key_values_length: int = 0):
     """
     Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
     """
-    bsz, src_len = shape_list(mask)
+    src_len = shape_list(mask)[1]
     tgt_len = tgt_len if tgt_len is not None else src_len
-
-    expanded_mask = tf.cast(tf.broadcast_to(mask[:, None, None, :], (bsz, 1, tgt_len, src_len)), tf.float32)
+    expanded_mask = tf.cast(tf.tile(mask[:, None, None, :], (1, 1, tgt_len, 1)), tf.float32)
 
     return (1.0 - expanded_mask) * LARGE_NEGATIVE
 
@@ -241,7 +241,7 @@ class TFBartAttention(tf.keras.layers.Layer):
             attn_weights = tf.reshape(layer_head_mask, (1, -1, 1, 1)) * tf.reshape(
                 attn_weights, (bsz, self.num_heads, tgt_len, src_len)
             )
-            attn_weights = attn_weights = tf.reshape(attn_weights, (bsz * self.num_heads, tgt_len, src_len))
+            attn_weights = tf.reshape(attn_weights, (bsz * self.num_heads, tgt_len, src_len))
 
         attn_probs = self.dropout(attn_weights, training=training)
 
@@ -915,7 +915,7 @@ class TFBartDecoder(tf.keras.layers.Layer):
                 tf.ones((input_shape[0], input_shape[1] + past_key_values_length)), tgt_len=input_shape[-1]
             )
 
-        if inputs["attention_mask"] is not None and input_shape[-1] > 1:
+        if inputs["attention_mask"] is not None:
             combined_attention_mask = combined_attention_mask + _expand_mask(
                 inputs["attention_mask"], tgt_len=input_shape[-1]
             )
@@ -993,8 +993,9 @@ class TFBartDecoder(tf.keras.layers.Layer):
 class TFBartMainLayer(tf.keras.layers.Layer):
     config_class = BartConfig
 
-    def __init__(self, config: BartConfig, load_weight_prefix=None, *inputs, **kwargs):
-        super().__init__(config, *inputs, **kwargs)
+    def __init__(self, config: BartConfig, load_weight_prefix=None, **kwargs):
+        super().__init__(**kwargs)
+        self.config = config
         self.shared = TFSharedEmbeddings(config.vocab_size, config.d_model, config.pad_token_id, name="model.shared")
 
         # set tf scope correctly
@@ -1137,10 +1138,10 @@ class TFBartMainLayer(tf.keras.layers.Layer):
     BART_START_DOCSTRING,
 )
 class TFBartModel(TFBartPretrainedModel):
-    def __init__(self, config: BartConfig, *inputs, **kwargs):
+    def __init__(self, config: BartConfig, load_weight_prefix=None, *inputs, **kwargs):
         super().__init__(config, *inputs, **kwargs)
 
-        self.model = TFBartMainLayer(config, name="model")
+        self.model = TFBartMainLayer(config, load_weight_prefix=load_weight_prefix, name="model")
 
     def get_encoder(self):
         return self.model.encoder
@@ -1245,7 +1246,7 @@ class TFBartForConditionalGeneration(TFBartPretrainedModel, TFCausalLanguageMode
 
     def __init__(self, config, load_weight_prefix=None, *inputs, **kwargs):
         super().__init__(config, *inputs, **kwargs)
-        self.model = TFBartModel(config, load_weight_prefix=load_weight_prefix, name="model")
+        self.model = TFBartMainLayer(config, load_weight_prefix=load_weight_prefix, name="model")
         self.use_cache = config.use_cache
         # final_bias_logits is registered as a buffer in pytorch, so not trainable for the the sake of consistency.
         self.final_logits_bias = self.add_weight(
@@ -1446,13 +1447,3 @@ class TFBartForConditionalGeneration(TFBartPretrainedModel, TFCausalLanguageMode
                 + layer_past_key_values[2:],
             )
         return (past[0], reordered_past)
-
-    def adjust_logits_during_generation(self, logits, cur_len, max_length):
-        if cur_len == 1 and self.config.force_bos_token_to_be_generated:
-            vocab_range = tf.constant(range(self.config.vocab_size))
-            return tf.where(vocab_range != self.config.bos_token_id, LARGE_NEGATIVE, logits)
-        elif cur_len == max_length - 1:
-            vocab_range = tf.constant(range(self.config.vocab_size))
-            return tf.where(vocab_range != self.config.eos_token_id, LARGE_NEGATIVE, logits)
-        else:
-            return logits
